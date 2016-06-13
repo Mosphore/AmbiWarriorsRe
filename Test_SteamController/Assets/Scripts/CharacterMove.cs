@@ -12,12 +12,16 @@ public class CharacterMove : NetworkBehaviour
     public AudioClip[] stepSounds;
 
     //deplacement du personnage
+    bool dead = false;
+    bool startGame = false;
     float shootMoveTimer = 0;
     float speedMultiplier = 1;
     float dashTimer = 0;
+    float canDashTimer = 0;
 
     bool dashingLeft = false,
          dashingRight = false;
+    bool shieldSpeed = false;
 
     public int playerId = 0; // The Rewired player id of this character
     private Player player; // The Rewired Player
@@ -26,6 +30,7 @@ public class CharacterMove : NetworkBehaviour
     public float TweakDashSpeed = 500;
     public float TweakDashDuration = 0.5f;
     public float TweakRotationSpeed = 1;
+    public float tweakDashCooldown = 2;
 
     Animator charAnim;
     //NetworkAnimator netCharAnim;
@@ -45,9 +50,24 @@ public class CharacterMove : NetworkBehaviour
         //netCharAnim = GetComponent<NetworkAnimator>();
     }
 
+    public void StartGame()
+    {
+        startGame = true;
+    }
+
+    public void setDead(bool b)
+    {
+        dead = b;
+    }
+
+    public void SetShieldSpeed(bool b)
+    {
+        shieldSpeed = b;
+    }
+
     public void SlowMovement()
     {
-        shootMoveTimer = 0.3f;
+        shootMoveTimer = 0.5f;
     }
 
     public void StartLeftDashMovement()
@@ -71,29 +91,27 @@ public class CharacterMove : NetworkBehaviour
 
     void FixedUpdate()
     {
-        if (isLocalPlayer)
+        if (isLocalPlayer && !dead && startGame)
         {
-            if (player.GetAxis("MoveHorizontal")>0)
-            {
-                transform.Rotate(0, TweakRotationSpeed, 0);
-            }
-            if (player.GetAxis("MoveHorizontal")<0)
-            {
-                transform.Rotate(0, -TweakRotationSpeed, 0);
-            }
 
-            if (player.GetAxis("DashLeft") != 0 && dashTimer <= 0)
+            transform.Rotate(0, player.GetAxis("MoveHorizontal") * TweakRotationSpeed, 0);
+
+            canDashTimer += Time.deltaTime;
+
+            if (player.GetAxis("DashLeft") != 0 && dashTimer <= 0 && canDashTimer > tweakDashCooldown)
             {
+                canDashTimer = 0;
                 //dashingLeft = true;
                 //dashTimer = TweakDashDuration;
 
-            charAnim.SetBool("DashLeft", true);
+                charAnim.SetBool("DashLeft", true);
 
                 leftDashAnimTimer = 0.3f;
 
             }
-            if (player.GetAxis("DashRight") != 0 && dashTimer <= 0)
+            if (player.GetAxis("DashRight") != 0 && dashTimer <= 0 && canDashTimer > tweakDashCooldown)
             {
+                canDashTimer = 0;
                 //dashingRight = true;
                 //dashTimer = TweakDashDuration;
 
@@ -106,7 +124,7 @@ public class CharacterMove : NetworkBehaviour
                     /*********/
                     //modifications de vitesse a cause des tirs
                     /*********/
-                    if (shootMoveTimer > 0)
+            if (shootMoveTimer > 0 || shieldSpeed)
             {
                 speedMultiplier = TweakShootSpeedMultiplier;
                 shootMoveTimer -= Time.deltaTime;
@@ -139,7 +157,6 @@ public class CharacterMove : NetworkBehaviour
             {
                 dashingRight = dashingLeft = false;
                 moveDirection = new Vector3(0, 0, -player.GetAxis("MoveVertical"));
-                Debug.Log(player.GetAxis("MoveVertical"));
                 //if(moveDirection.z > 1)
                 //{
                 //    moveDirection.z = 1;
@@ -150,7 +167,14 @@ public class CharacterMove : NetworkBehaviour
                 //}
                 moveDirection = transform.TransformDirection(moveDirection);
 
+
                 moveDirection *= TweakMoveSpeed * speedMultiplier * Time.deltaTime;
+                //Debug.Log(moveDirection.magnitude);
+                if (moveDirection.magnitude > 720)
+                {
+                    moveDirection.Normalize();
+                    moveDirection *= 720;
+                }
             }
 
             if (player.GetAxis("MoveVertical")!= 0)

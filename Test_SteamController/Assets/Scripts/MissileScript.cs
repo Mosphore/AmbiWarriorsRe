@@ -7,16 +7,18 @@ public class MissileScript : NetworkBehaviour
     public float nbDegatSurBatiment = 20.0f;
 
     public GameObject effetExplosion;
-    GameObject playerOwner;
+    NetworkInstanceId playerOwner;
+    bool originArm;
 
     // Use this for initialization
     void Start()
     {
     }
 
-    public void SetOwner(GameObject Owner)
+    public void SetOwner(NetworkInstanceId Owner, bool side)
     {
         playerOwner = Owner;
+        originArm = side;
     }
     // Update is called once per frame
     void Update()
@@ -26,39 +28,41 @@ public class MissileScript : NetworkBehaviour
 
     void OnCollisionEnter(Collision collision)
     {
-        CmdInstancierEffetDestruction();
-        if (collision.transform.tag == "Character" && collision.gameObject != playerOwner)
+        if (isServer)
         {
-            collision.transform.GetComponent<CharacterLife>().LoseLife(100);
+            Debug.Log("server : " + playerOwner);
+            CmdInstancierEffetDestruction();
+            if (collision.transform.tag == "Character")
+            {
+                GameObject g = NetworkServer.FindLocalObject(playerOwner);
+                if(g!= null)
+                g.GetComponent<Character>().callHitmarker(originArm);
+                collision.transform.GetComponent<CharacterLife>().LoseLife(100, playerOwner);
+            }
+            else if (collision.transform.tag == "DestructBat")
+            {
+                collision.transform.GetComponent<DestructObject>().TakeDamage(nbDegatSurBatiment);
+            }
         }
-        else if (collision.transform.tag == "DestructBat")
-        {
-            collision.transform.GetComponent<DestructObject>().TakeDamage(nbDegatSurBatiment);
-        }
-
         // pour Batiments Destructibles
-       
     }
 
     [ClientRpc]
     void RpcEraseMissile()
     {
-        transform.GetComponent<MeshRenderer>().enabled = false;
+        Destroy(transform.FindChild("FX_MissilleSparksTrail").gameObject);
+        Destroy(transform.FindChild("FX_MissilleSmokeTrail").gameObject);
+        transform.GetComponentInChildren<MeshRenderer>().enabled = false;
         transform.GetComponent<Rigidbody>().Sleep();
         transform.GetComponent<CapsuleCollider>().enabled = false;
     }
 
-    [Command]
+    //[Command]
     void CmdInstancierEffetDestruction()
     {
         //correction pour instancier sur le sol
-        Vector3 posInstanciate = transform.position;
 
-        //effet de fumee
-        //GameObject fumee = (GameObject)Instantiate(
-        //   effetFumee,
-        //   posInstanciate,
-        //   Quaternion.Euler(270,0,0));
+        Vector3 posInstanciate = transform.position;
 
         //effet explosion
         GameObject explosion = (GameObject)Instantiate(
@@ -71,14 +75,12 @@ public class MissileScript : NetworkBehaviour
         //NetworkServer.Spawn(fumee);
         NetworkServer.Spawn(explosion);
         Destroy(explosion, 2.0f);
-        transform.GetComponent<MeshRenderer>().enabled = false;
+        transform.GetComponentInChildren<MeshRenderer>().enabled = false;
         transform.GetComponent<Rigidbody>().Sleep();
         transform.GetComponent<CapsuleCollider>().enabled = false;
         RpcEraseMissile();
-        Destroy(gameObject,3.0f);
-        // Destroy(fumee,10.0f);
 
-
+        Destroy(gameObject, 3.0f);
     }
 }
 

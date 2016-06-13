@@ -13,6 +13,7 @@ using System.Collections;
 /// </summary>
 
 public class DestructObject : NetworkBehaviour {
+
     const float MAXLIFE = 100.0f;
     [SyncVar]
     public float life ;
@@ -35,6 +36,9 @@ public class DestructObject : NetworkBehaviour {
 
     public void TakeDamage(float damage)
     {
+        if (!isServer)
+            return;
+
         life -= damage;
         if(life <= 0)
         {
@@ -43,7 +47,7 @@ public class DestructObject : NetworkBehaviour {
     }
 
     // pour instancier les effets de particule
-    [Command]
+
     void CmdInstancierEffetDestruction()
     {
         //correction pour instancier sur le sol

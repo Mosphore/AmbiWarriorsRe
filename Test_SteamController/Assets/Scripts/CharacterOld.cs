@@ -408,7 +408,7 @@ public class CharacterOld : NetworkBehaviour
 
                 if (hit.transform.tag == "Character")
                 {
-                    hit.transform.GetComponent<CharacterLife>().LoseLife(20);
+                    hit.transform.GetComponent<CharacterLife>().LoseLife(20, GetComponent<NetworkIdentity>().netId);
                 }
 
                 //if (hit.transform.tag == "DestructBat")

@@ -6,7 +6,7 @@ using Rewired;
 //[RequireComponent(typeof(CharacterController))]
 public class Character : NetworkBehaviour
 {
-    enum SHOOT_TYPE
+    public enum SHOOT_TYPE
     {
         LEFT_MISSILE = 0,
         LEFT_GATLING,
@@ -21,19 +21,22 @@ public class Character : NetworkBehaviour
     private Player player; // The Rewired Player
 
     Animator charAnim;
-    //NetworkAnimator netCharAnim;
     float leftBazookaAnimTimer, rightBazookaAnimTimer;
 
     //prefabs
     public GameObject missile;
-
     public GameObject GatlingParticleEffect;
     public GameObject ImpactParticle;
     public GameObject MissileShootParticle;
 
     //sprites HUD
-    public Texture2D crosshairLeft, crosshairRight;
+    public Texture2D crosshairLeft, crosshairRight, hitmarkerLeft, hitmarkerRight;
     public Texture2D cockpit;
+    float leftHitmarkerAlpha = 0, rightHitmarkerAlpha = 0;
+
+    //GameState
+    bool dead = false;
+    bool startGame = false;
 
     //Camera
     public Transform camParentTransform;
@@ -42,7 +45,7 @@ public class Character : NetworkBehaviour
     public GameObject armorTop; // on desactive l'affichage de l'armure pour le joueur, pasque sinon elle est devant sa camera, c'est pour placer la cam plus ou on veut
 
     //Viseurs
-
+    bool drawLeftHitmarker = false, drawRightHitmarker;
     Vector2 leftCrosshairMove, rightCrosshairMove;
     Vector2 leftInput, rightInput, prevLeftInput, prevRightInput;
 
@@ -53,10 +56,12 @@ public class Character : NetworkBehaviour
     Vector3 rightArmLookAt;
 
     public Transform LeftArmTransform, RightArmTransform;
+    public Transform LeftArmAimMinimap, RightArmAimMinimap;
     Vector3 aimPosRight;
     Vector3 aimPosLeft;
 
     //Missile et Tirs
+    bool canShootRight = true, canShootLeft = true;
     public Transform shootSpawnLeft, shootSpawnRight;
     float leftShootTimer = 0,
           rightShootTimer = 0,
@@ -74,16 +79,33 @@ public class Character : NetworkBehaviour
         aimPosRight = aimPosLeft = Vector3.zero;
     }
 
+    IEnumerator ConnectPlayer()
+    {
+        yield return new WaitForSeconds(2);
+
+        Debug.Log("CharacterIsServerStart");
+        GameObject.Find("GameManager").GetComponent<GameManager>().ConnectPlayer(GetComponent<NetworkIdentity>().netId);
+
+    }
+
     // Use this for initialization
     void Start()
     {
-        
+        if(isServer)
+        {
+            Debug.Log("CharacterIsServerStart");
+            StartCoroutine(ConnectPlayer());
+
+        }
         charAnim = GetComponent<Animator>();
-        //netCharAnim = GetComponent<NetworkAnimator>();
-        //active la bonne camera pour le perso sur le serveur
+        if(!isLocalPlayer)
+        {
+            LeftArmAimMinimap.GetComponent<Renderer>().enabled = false;
+            RightArmAimMinimap.GetComponent<Renderer>().enabled = false;
+        }
         if (isLocalPlayer)
         {
-                
+            GameObject.Find("GameManager").GetComponent<GameManager>().player = gameObject;
             TweakRightCrosshairInitPos += new Vector2(Screen.width / 2, Screen.height / 2);
 
             TweakLeftCrosshairInitPos += new Vector2(Screen.width / 2, Screen.height / 2);
@@ -113,35 +135,23 @@ public class Character : NetworkBehaviour
         }
     }
 
-    void OnGUI()
+    public void StartGame()
     {
-        if (!isLocalPlayer)
-            return;
-
-        //dessin des cibles (crosshair)
-        GUI.DrawTexture(new Rect(TweakLeftCrosshairInitPos.x + leftCrosshairMove.x - crosshairLeft.width / 6,
-                                 TweakLeftCrosshairInitPos.y + leftCrosshairMove.y - crosshairLeft.height / 6,
-                                 crosshairLeft.width / 3, crosshairLeft.height / 3),
-                                 crosshairLeft);
-
-        GUI.DrawTexture(new Rect(TweakRightCrosshairInitPos.x + rightCrosshairMove.x - crosshairRight.width / 6,
-                                 TweakRightCrosshairInitPos.y + rightCrosshairMove.y - crosshairRight.height / 6,
-                                 crosshairRight.width / 3, crosshairRight.height / 3),
-                                 crosshairRight);
-
-        //if (showcockpit)
-        //    GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), cockpit);
+        startGame = true;
     }
 
-    [Command]
-    void CmdCheat()
+    public void setCanShootLeft(bool canShoot)
     {
-        GetComponent<CharacterLife>().LoseLife(200);
+        canShootLeft = canShoot;
+    }
+
+    public void setCanShootRight(bool canShoot)
+    {
+        canShootRight = canShoot;
     }
 
     void PlayerControls()
     {
-
         Vector2 moveLeft, moveRight;
         moveLeft = moveRight = Vector2.zero;
 
@@ -180,12 +190,16 @@ public class Character : NetworkBehaviour
             leftCrosshairMove.x -= moveLeft.x * 300;
 
         leftCrosshairMove.y += moveLeft.y * 300;
+        if(TweakLeftCrosshairInitPos.y + leftCrosshairMove.y > Screen.height - Screen.height/5 || TweakLeftCrosshairInitPos.y + leftCrosshairMove.y < Screen.height / 5)
+            leftCrosshairMove.y -= moveLeft.y * 300;
 
         rightCrosshairMove.x += moveRight.x * 300;
         if (TweakRightCrosshairInitPos.x + rightCrosshairMove.x < Screen.width / 3 || TweakRightCrosshairInitPos.x + rightCrosshairMove.x > Screen.width)
             rightCrosshairMove.x -= moveRight.x * 300;
 
         rightCrosshairMove.y += moveRight.y * 300;
+        if(TweakRightCrosshairInitPos.y + rightCrosshairMove.y > Screen.height - Screen.height / 5 || TweakRightCrosshairInitPos.y + rightCrosshairMove.y < Screen.height / 5)
+            rightCrosshairMove.y -= moveRight.y * 300;
 
         /*********/
         //tirs
@@ -195,7 +209,7 @@ public class Character : NetworkBehaviour
         leftMissileTimer += Time.deltaTime;
         rightMissileTimer += Time.deltaTime;
 
-        if (Input.GetAxisRaw("RightMissile") > 0 && rightMissileTimer >= 1.0f)
+        if (Input.GetAxisRaw("RightMissile") > 0 && rightMissileTimer >= 1.0f && canShootRight)
         {
             shootSpawnRight.GetComponent<AudioSource>().Play();
             CmdPlayBazookaSound(true);
@@ -204,7 +218,7 @@ public class Character : NetworkBehaviour
             CalcShoot(SHOOT_TYPE.RIGHT_MISSILE);
         }
 
-        if (Input.GetAxisRaw("LeftMissile") > 0 && leftMissileTimer >= 1.0f)
+        if (Input.GetAxisRaw("LeftMissile") > 0 && leftMissileTimer >= 1.0f && canShootLeft)
         {
             shootSpawnLeft.GetComponent<AudioSource>().Play();
             CmdPlayBazookaSound(false);
@@ -213,7 +227,7 @@ public class Character : NetworkBehaviour
             CalcShoot(SHOOT_TYPE.LEFT_MISSILE);
         }
 
-        if (player.GetAxis("LeftGatling") != 0 && leftShootTimer >= 0.085f)
+        if (player.GetAxis("LeftGatling") != 0 && leftShootTimer >= 0.085f && leftMissileTimer >= 1.0f && canShootLeft)
         {
             shootSpawnLeft.GetComponent<AudioSource>().PlayOneShot(shootSoundsArray[Random.Range(0, shootSoundsArray.Length)]);  // on joue le son
             CmdPlayGatlingSound(false);
@@ -223,22 +237,20 @@ public class Character : NetworkBehaviour
         }
 
 
-        if (player.GetAxis("RightGatling") != 0 && rightShootTimer >= 0.085f)
+        if (player.GetAxis("RightGatling") != 0 && rightShootTimer >= 0.085f && rightMissileTimer >= 1.0f && canShootRight)
         {
             shootSpawnLeft.GetComponent<AudioSource>().PlayOneShot(shootSoundsArray[Random.Range(0, shootSoundsArray.Length)]); // on joue le son
             CmdPlayGatlingSound(true);
-
-
             rightShootTimer = 0;
             CalcShoot(SHOOT_TYPE.RIGHT_GATLING);
         }
 
-        if (player.GetAxis("RightGatling") != 0)
+        if (player.GetAxis("RightGatling") != 0 && canShootRight && rightMissileTimer >= 1.0f)
             charAnim.SetBool("GatlingRight", true);
         else
             charAnim.SetBool("GatlingRight", false);
 
-        if (player.GetAxis("LeftGatling") != 0)
+        if (player.GetAxis("LeftGatling") != 0 && canShootLeft && leftMissileTimer >= 1.0f)
             charAnim.SetBool("GatlingLeft", true);
         else
             charAnim.SetBool("GatlingLeft", false);
@@ -248,12 +260,11 @@ public class Character : NetworkBehaviour
     //on calcule la position et l'orientation du tir selon le bras qui a tiré et le type de tir avant d'envoyer le tout au serveur avec la [Command]
     void CalcShoot(SHOOT_TYPE st)
     {
-        GetComponent<CharacterMove>().SlowMovement();
         if (st == SHOOT_TYPE.RIGHT_MISSILE)
         {
-
+            GetComponent<CharacterMove>().SlowMovement();
             charAnim.SetBool("BazookaRight", true);
-            rightBazookaAnimTimer = 0.1f;
+            rightBazookaAnimTimer = 0.3f;
             //   leftCrosshairInitPos.x + leftCrosshairMove.x
             Vector3 p = camRightAim.GetComponent<Camera>().ScreenToWorldPoint(new Vector3(TweakRightCrosshairInitPos.x + rightCrosshairMove.x,
                                                                                        TweakRightCrosshairInitPos.y - rightCrosshairMove.y, 100));
@@ -269,14 +280,14 @@ public class Character : NetworkBehaviour
 
             Vector3 shootDir = p - shootSpawnRight.position;
             shootDir.Normalize();
-            CmdShootMissile(shootSpawnRight.position, shootDir);
+            CmdShootMissile(shootSpawnRight.position, shootDir, true);
         }
         else if (st == SHOOT_TYPE.RIGHT_GATLING)
         {
             Vector3 p = camRightAim.GetComponent<Camera>().ScreenToWorldPoint(new Vector3(TweakRightCrosshairInitPos.x + rightCrosshairMove.x,
                                                                            TweakRightCrosshairInitPos.y - rightCrosshairMove.y, 100));
             RaycastHit hit;
-            if (Physics.Raycast(camPlayer.position, p - camPlayer.position, out hit))
+            if (Physics.Raycast(camPlayer.position, p - camPlayer.position, out hit ))
             {
                 if (hit.collider != null)
                 {
@@ -285,13 +296,13 @@ public class Character : NetworkBehaviour
             }
             Vector3 shootDir = p - shootSpawnRight.position;
             shootDir.Normalize();
-            CmdShootGatling(shootSpawnRight.position, shootDir);
+            CmdShootGatling(shootSpawnRight.position, shootDir, true);
         }
         if (st == SHOOT_TYPE.LEFT_MISSILE)
         {
-
+            GetComponent<CharacterMove>().SlowMovement();
             charAnim.SetBool("BazookaLeft", true);
-            leftBazookaAnimTimer = 0.1f;
+            leftBazookaAnimTimer = 0.3f;
             Vector3 p = camLeftAim.GetComponent<Camera>().ScreenToWorldPoint(new Vector3(TweakLeftCrosshairInitPos.x + leftCrosshairMove.x,
                                                                                        TweakLeftCrosshairInitPos.y - leftCrosshairMove.y, 100));
             RaycastHit hit;
@@ -304,7 +315,7 @@ public class Character : NetworkBehaviour
             }
             Vector3 shootDir = p - shootSpawnLeft.position;
             shootDir.Normalize();
-            CmdShootMissile(shootSpawnLeft.position, shootDir);
+            CmdShootMissile(shootSpawnLeft.position, shootDir, false);
         }
         else if (st == SHOOT_TYPE.LEFT_GATLING)
         {
@@ -321,19 +332,18 @@ public class Character : NetworkBehaviour
             }
             Vector3 shootDir = p - shootSpawnLeft.position;
             shootDir.Normalize();
-            CmdShootGatling(shootSpawnLeft.position, shootDir);
+            CmdShootGatling(shootSpawnLeft.position, shootDir, false);
         }
-
     }
 
     [Command]
-    void CmdShootMissile(Vector3 position, Vector3 direction)
+    void CmdShootMissile(Vector3 position, Vector3 direction, bool side)
     {
         //tir d'objet physique (missile )
         GameObject MissileClone = (GameObject)Instantiate(missile, position, Quaternion.identity);
-        MissileClone.transform.up = direction;
+        MissileClone.transform.forward = direction;
         MissileClone.GetComponent<Rigidbody>().velocity = direction * TweakMissileSpeed;
-        MissileClone.GetComponent<MissileScript>().SetOwner(gameObject);
+        MissileClone.GetComponent<MissileScript>().SetOwner(GetComponent<NetworkIdentity>().netId, side);
         NetworkServer.Spawn(MissileClone);
         Destroy(MissileClone, 10.0f);
 
@@ -343,8 +353,56 @@ public class Character : NetworkBehaviour
         Destroy(MissileShootParticleClone, 1.0f);
     }
 
+    public void setDead(bool b)
+    {
+        dead = b;
+    }
+
+    public void callHitmarker(bool side)
+    {
+        if (!isServer)
+            return;
+
+        if(side)
+        {
+            RpcRightHitmarker();
+        }
+        else
+        {
+            RpcLeftHitmarker();
+        }
+    }
+
+    public void callHasKilled()
+    {
+
+    }
+
+    [ClientRpc]
+    void RpcHasKilled()
+    {
+        if(isLocalPlayer)
+        {
+
+        }
+    }
+
+    [ClientRpc]
+    void RpcLeftHitmarker()
+    {
+        if(isLocalPlayer)
+            drawLeftHitmarker = true;
+    }
+
+    [ClientRpc]
+    void RpcRightHitmarker()
+    {
+        if (isLocalPlayer)
+            drawRightHitmarker = true;
+    }
+
     [Command]
-    void CmdShootGatling(Vector3 position, Vector3 direction)
+    void CmdShootGatling(Vector3 position, Vector3 direction, bool side)
     {
         RaycastHit hit;
         if (Physics.Raycast(position, direction, out hit))
@@ -362,7 +420,12 @@ public class Character : NetworkBehaviour
 
                 if (hit.transform.tag == "Character")
                 {
-                    hit.transform.GetComponent<CharacterLife>().LoseLife(10);
+                    if (side)
+                        RpcRightHitmarker();
+                    else
+                        RpcLeftHitmarker();
+
+                        hit.transform.GetComponent<CharacterLife>().LoseLife(5, GetComponent<NetworkIdentity>().netId);
                 }
 
                 //if (hit.transform.tag == "DestructBat")
@@ -417,6 +480,32 @@ public class Character : NetworkBehaviour
         }
     }
 
+    //synchronise la rotation des bras du robot pour les autres clients
+    void RotateArmOther()
+    {
+        if (!isLocalPlayer && charAnim.GetBool("Dead") != true)
+        {
+            LeftArmTransform.forward = leftArmLookAt - LeftArmTransform.position;
+            RightArmTransform.forward = rightArmLookAt - RightArmTransform.position;
+        }
+    }
+
+    [Command]
+    void CmdProvideRotationsToServer(Vector3 leftlookAt, Vector3 rightLookAt)
+    {
+        leftArmLookAt = leftlookAt;
+        rightArmLookAt = rightLookAt;
+    }
+
+    [Client]
+    void TransmitRotations()
+    {
+        if (isLocalPlayer)
+        {
+            CmdProvideRotationsToServer(aimPosLeft, aimPosRight);
+        }
+    }
+
     void OnDrawGizmos()
     {
         Gizmos.color = Color.blue;
@@ -429,11 +518,65 @@ public class Character : NetworkBehaviour
 
     }
 
-    // Update is called once per frame
-    void Update()
+    void OnGUI()
     {
         if (!isLocalPlayer)
             return;
+
+        //dessin des cibles (crosshair)
+        GUI.DrawTexture(new Rect(TweakLeftCrosshairInitPos.x + leftCrosshairMove.x - Screen.width/32,
+                                 TweakLeftCrosshairInitPos.y + leftCrosshairMove.y - Screen.width/32,
+                                 Screen.width / 16, Screen.width/16),
+                                 crosshairLeft);
+
+        GUI.DrawTexture(new Rect(TweakRightCrosshairInitPos.x + rightCrosshairMove.x - Screen.width / 32,
+                                 TweakRightCrosshairInitPos.y + rightCrosshairMove.y - Screen.width / 32,
+                                 Screen.width / 16, Screen.width / 16),
+                                 crosshairRight);
+
+        GUI.color = new Color(1, 1, 1, leftHitmarkerAlpha);   
+        GUI.DrawTexture(new Rect(TweakLeftCrosshairInitPos.x + leftCrosshairMove.x - Screen.width / 32,
+                         TweakLeftCrosshairInitPos.y + leftCrosshairMove.y - Screen.width / 32,
+                         Screen.width / 16, Screen.width / 16),
+                         hitmarkerLeft);
+
+        GUI.color = new Color(1, 1, 1, rightHitmarkerAlpha);
+        GUI.DrawTexture(new Rect(TweakRightCrosshairInitPos.x + rightCrosshairMove.x - Screen.width / 32,
+                                 TweakRightCrosshairInitPos.y + rightCrosshairMove.y - Screen.width / 32,
+                                 Screen.width / 16, Screen.width / 16),
+                                 hitmarkerRight);
+
+        //if (showcockpit)
+        //    GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), cockpit);
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+
+
+        if (!isLocalPlayer)
+            return;
+
+        if (drawLeftHitmarker)
+        {
+            leftHitmarkerAlpha = 1;
+            drawLeftHitmarker = false;
+        }
+        if (drawRightHitmarker)
+        {
+            rightHitmarkerAlpha = 1;
+            drawRightHitmarker = false;
+        }
+
+        if(rightHitmarkerAlpha >0)
+        {
+            rightHitmarkerAlpha -= Time.deltaTime;
+        }
+        if (leftHitmarkerAlpha > 0)
+        {
+            leftHitmarkerAlpha -= Time.deltaTime;
+        }
 
         if (leftBazookaAnimTimer > 0)
         {
@@ -456,7 +599,7 @@ public class Character : NetworkBehaviour
         /**********/
         //le cheat c'est par ici
         /**********/
-        if (Input.GetKey(KeyCode.K))
+        if (Input.GetKey(KeyCode.L))
         {
             CmdCheat();
         }
@@ -477,6 +620,9 @@ public class Character : NetworkBehaviour
             camPlayer = camFPS;
         }
 
+
+
+        if(!dead && startGame)
         PlayerControls();
 
         //assignement de la bonne camera au viseur
@@ -505,54 +651,29 @@ public class Character : NetworkBehaviour
 
         aimPosRight = camRightAim.GetComponent<Camera>().ScreenToWorldPoint(new Vector3(TweakRightCrosshairInitPos.x + rightCrosshairMove.x,
                                                                                        TweakRightCrosshairInitPos.y - rightCrosshairMove.y, 100));
-
     }
 
     void FixedUpdate()
     {
+        if(!dead)
         TransmitRotations();
-
-
     }
-
-    //synchronise la rotation des bras du robot pour les autres clients
-    void RotateArmOther()
-    {
-        if (!isLocalPlayer)
-        {
-            LeftArmTransform.forward = leftArmLookAt - LeftArmTransform.position;
-            RightArmTransform.forward = rightArmLookAt - RightArmTransform.position;
-        }
-    }
-
-    [Command]
-    void CmdProvideRotationsToServer(Vector3 leftlookAt, Vector3 rightLookAt)
-    {
-        leftArmLookAt = leftlookAt;
-        rightArmLookAt = rightLookAt;
-    }
-
-    [Client]
-    void TransmitRotations()
-    {
-        if (isLocalPlayer)
-        {
-            CmdProvideRotationsToServer(aimPosLeft, aimPosRight);
-        }
-    }
-
+    
     // pour bouger les bras du robot apres l'animation
     void LateUpdate()
     {
-
-        //Quaternion lookRotation = Quaternion.LookRotation(aimPosLeft - LeftArmTransform.position);
-        //LeftArmTransform.rotation = lookRotation;
-
-        LeftArmTransform.forward = aimPosLeft - LeftArmTransform.position;
-        RightArmTransform.forward = aimPosRight - RightArmTransform.position;
-        //LeftArmTransform.forward =  -(LeftArmTransfor.position - aimPosLeft);
-        //LeftArmTransform.forward = Vector3.Cross(LeftArmTransform.right, LeftArmTransform.forward);
+        if (isLocalPlayer && !dead)
+        {
+            LeftArmTransform.forward = aimPosLeft - LeftArmTransform.position;
+            RightArmTransform.forward = aimPosRight - RightArmTransform.position;
+        }
 
         RotateArmOther();
+    }
+
+    [Command]
+    void CmdCheat()
+    {
+        GetComponent<CharacterLife>().LoseLife(200, GetComponent<NetworkIdentity>().netId);
     }
 }
