@@ -32,7 +32,6 @@ public class NetworkManager_Custom : NetworkManager
 
     public string GetIP()
     {
-        Debug.Log(NetworkManager.singleton.networkAddress);
         return NetworkManager.singleton.networkAddress;
     }
 

@@ -33,7 +33,6 @@ public class EnnemyViewer : NetworkBehaviour
             {
                 if (g != gameObject && g!= null)
                 {
-                    Debug.Log(g);
                     targetPos = g.transform.FindChild("Target").transform.position;
                     screenPos = camPlayer.WorldToViewportPoint(targetPos);
 

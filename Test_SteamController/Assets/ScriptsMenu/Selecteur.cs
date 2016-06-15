@@ -10,13 +10,11 @@ public class Selecteur : MonoBehaviour
     public AudioClip move;
     public AudioClip select;
     public AudioClip back;
-    public AudioSource audio;
+    public AudioSource audiau;
     private GameObject cam;
 
     //variables ecran titre
     private SpriteRenderer srps;
-    private SpriteRenderer srtitle;
-    public GameObject title;
     public GameObject pressstart;
 
     //variables mainmenu
@@ -93,7 +91,6 @@ public class Selecteur : MonoBehaviour
         sr2 = bouton2.GetComponent<SpriteRenderer>();
         sr3 = bouton3.GetComponent<SpriteRenderer>();
         srecran = ecran.GetComponent<SpriteRenderer>();
-        srtitle = title.GetComponent<SpriteRenderer>();
         srps = pressstart.GetComponent<SpriteRenderer>();
         sred = red.GetComponent<SpriteRenderer>();
         sblue = blue.GetComponent<SpriteRenderer>();
@@ -113,8 +110,7 @@ public class Selecteur : MonoBehaviour
         //press start
         if (Input.GetKeyUp(KeyCode.Return) && activemenu == 0)
         {
-            audio.PlayOneShot(select, 1.0F);
-            srtitle.enabled = false;
+            audiau.PlayOneShot(select, 1.0F);
             srps.enabled = false;
             mainmenu();
         }
@@ -124,7 +120,7 @@ public class Selecteur : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.P))
             {
-                audio.PlayOneShot(back, 1.0F);
+                audiau.PlayOneShot(back, 1.0F);
                 mainmenu();
             }
         }
@@ -135,7 +131,7 @@ public class Selecteur : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.DownArrow))
             {
                 posbouton = posbouton + 1;
-                audio.PlayOneShot(move, 0.9F);
+                audiau.PlayOneShot(move, 0.9F);
                 over();
                 highlight();
             }
@@ -144,24 +140,24 @@ public class Selecteur : MonoBehaviour
             if (Input.GetKeyDown(KeyCode.UpArrow))
             {
                 posbouton = posbouton - 1;
-                audio.PlayOneShot(move, 0.9F);
+                audiau.PlayOneShot(move, 0.9F);
                 over();
                 highlight();
             }
             //changement de menu depuis mainmenu
             if (Input.GetKeyUp(KeyCode.Space) && posbouton == 0)
             {
-                audio.PlayOneShot(select, 1.0F);
+                audiau.PlayOneShot(select, 1.0F);
                 playmenu();
             }
             if (Input.GetKeyUp(KeyCode.Space) && posbouton == 1)
             {
-                audio.PlayOneShot(select, 1.0F);
+                audiau.PlayOneShot(select, 1.0F);
                 custommenu();
             }
             if (Input.GetKeyUp(KeyCode.Space) && posbouton == 2)
             {
-                audio.PlayOneShot(select, 1.0F);
+                audiau.PlayOneShot(select, 1.0F);
                 creditsmenu();
             }
         }
@@ -174,7 +170,7 @@ public class Selecteur : MonoBehaviour
                 if (Input.GetKeyDown(KeyCode.DownArrow))
                 {
                     posbouton = posbouton + 1;
-                    audio.PlayOneShot(move, 0.9F);
+                    audiau.PlayOneShot(move, 0.9F);
                     highlight();
                 }
             }
@@ -183,7 +179,7 @@ public class Selecteur : MonoBehaviour
                 if (Input.GetKeyDown(KeyCode.UpArrow))
                 {
                     posbouton = posbouton - 1;
-                    audio.PlayOneShot(move, 0.9F);
+                    audiau.PlayOneShot(move, 0.9F);
                     highlight();
                 }
             }

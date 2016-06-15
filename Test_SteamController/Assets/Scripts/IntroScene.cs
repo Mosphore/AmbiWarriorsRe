@@ -5,7 +5,7 @@ using System.Collections;
 public class IntroScene : MonoBehaviour
 {
 
-    float timer = 5;
+    float timer = 2;
     // Use this for initialization
     void Start()
     {

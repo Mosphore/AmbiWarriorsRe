@@ -32,6 +32,8 @@ public class changescore : MonoBehaviour {
 
     public void SetMyScore(GameManager.Score s)
     {
+
+        Debug.Log("SCORECHANGE");
         myscore = s.kills;
         mydeathamount = s.deaths;
         Scorechange();
@@ -39,6 +41,8 @@ public class changescore : MonoBehaviour {
 
     public void SetOtherScore(GameManager.Score s, GameManager.Score s2)
     {
+
+        Debug.Log("SCORECHANGE");
         j2score = s.kills;
         j2deathamount = s.deaths;
         j3score = s2.kills;
@@ -73,7 +77,7 @@ public class changescore : MonoBehaviour {
     }
 
 	void Scorechange(){
-		myscorestring = myscore.ToString ();
+        myscorestring = myscore.ToString ();
 		Mykills.text = myscorestring;
 		mydeathamountstring = mydeathamount.ToString ();
 		Mydeath.text = mydeathamountstring;

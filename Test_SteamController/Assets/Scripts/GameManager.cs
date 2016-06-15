@@ -12,8 +12,12 @@ public class GameManager : NetworkBehaviour{
         public int deaths ;
     }
 
+    public AudioClip bip;
+    public AudioClip tut;
+
     Dictionary<NetworkInstanceId, int> PlayersTabServer;
     Dictionary<NetworkInstanceId, int> PlayersTab;
+
     Score[] otherScores;
     Score myScore;
     int otherPlayerNumber = 0;
@@ -40,7 +44,6 @@ public class GameManager : NetworkBehaviour{
 	// Use this for initialization
 	void Start ()
     {
-        Debug.Log("GameManagerStart");
         //DontDestroyOnLoad(gameObject);
         otherScores = new Score[2];
         otherScores[0].kills = otherScores[0].deaths = otherScores[1].kills = otherScores[1].deaths;
@@ -48,7 +51,10 @@ public class GameManager : NetworkBehaviour{
         myScore.deaths = 0;
         one = two = three = false;
 
+        Debug.Log("UPDATESCOREBEFORE");
         PlayersTab = new Dictionary<NetworkInstanceId, int>();
+
+        if(isServer)
         PlayersTabServer = new Dictionary<NetworkInstanceId, int>();
     }
 
@@ -66,7 +72,6 @@ public class GameManager : NetworkBehaviour{
             PlayersTabServer.Add(deadId, 1);
         }
         RpcUpdateScores(killerId, deadId);
-        Debug.Log("DeadPlayer");
 
         if (deadGuys >= 2)
         {
@@ -84,31 +89,34 @@ public class GameManager : NetworkBehaviour{
     [ClientRpc]
     void RpcUpdateScores(NetworkInstanceId killerId, NetworkInstanceId deadId)
     {
-        Debug.Log("killerId : " + killerId.Value);
-        Debug.Log("deadId : " + deadId.Value);
-        Debug.Log("myId : " + player.GetComponent<NetworkIdentity>().netId.Value);
+       
 
         if (player.GetComponent<NetworkIdentity>().netId.Value != deadId.Value)
         {
-            otherScores[PlayersTab[deadId]].deaths++;
+            Debug.Log("UPDATESCOREBEFORE");
+            int i = 0;
+            if(PlayersTab.TryGetValue(deadId, out i))
+                otherScores[i].deaths++;
+            else
+                Debug.Log("ERROR : CANT FIND PLAYER SCORE");
 
-            Debug.Log("SomeoneIsDead" + deadGuys);
         }
         else
         {
             myScore.deaths++;
-            Debug.Log("ImDead" + deadGuys);
         }
 
         if(player.GetComponent<NetworkIdentity>().netId != killerId)
         {
-            otherScores[PlayersTab[killerId]].kills++;
-            Debug.Log("SomeoneKilledSomebody");
+            int j = 0;
+            if (PlayersTab.TryGetValue(killerId, out j))
+                otherScores[j].kills++;
+            else
+                Debug.Log("ERROR : CANT FIND PLAYER SCORE");
         }
         else
         {
             myScore.kills++;
-            Debug.Log("IKilledSomebody");
         }
 
         GameObject.Find("killscreen").GetComponent<changescore>().SetMyScore(myScore);
@@ -118,11 +126,9 @@ public class GameManager : NetworkBehaviour{
     public void ConnectPlayer(NetworkInstanceId id)
     {
         connectedPlayers++;
-        Debug.Log("SERVER : PlayerConnected : " + connectedPlayers);
         //RpcSyncPlayer(id);
         if (connectedPlayers == 3)
         {
-            Debug.Log("SERVER : All Players IN, Starting Countdown");
             RpcStartGame();
         }
     }
@@ -130,7 +136,6 @@ public class GameManager : NetworkBehaviour{
     [ClientRpc]
     void RpcStartGame()
     {
-        Debug.Log("CLIENT : StartingClientCountdown");
         startGame = true;
         //player.GetComponent<Character>().StartGame();
     }
@@ -169,35 +174,38 @@ public class GameManager : NetworkBehaviour{
         {
             if (three == false && startTimer == 3)
             {
+                GetComponent<AudioSource>().PlayOneShot(tut);
                 three = true;
-                Debug.Log("Start In 3");
             }
             if (two == false && startTimer <= 2)
             {
+                GetComponent<AudioSource>().PlayOneShot(tut);
                 two = true;
-                Debug.Log("Start In 2");
             }
             if (one == false && startTimer <= 1)
             {
+                GetComponent<AudioSource>().PlayOneShot(tut);
                 one = true;
-                Debug.Log("Start In 1");
             }
             startTimer -= Time.deltaTime;
         }
 
         if (startTimer <= 0 && !gameStarted)
         {
+            GetComponent<AudioSource>().PlayOneShot(bip);
             GameObject[] g = GameObject.FindGameObjectsWithTag("Character");
             for (int i = 0; i < g.Length; ++i)
             {
                 if (g[i] != player)
                 {
+                    Debug.Log("BEFORE");
                     PlayersTab.Add(g[i].GetComponent<NetworkIdentity>().netId, otherPlayerNumber);
+
+                    Debug.Log("AFTER");
 
                     otherPlayerNumber++;
                 }
             }
-            Debug.Log("START, added " + otherPlayerNumber + " players to score array");
             player.GetComponent<Character>().StartGame();
             player.GetComponent<CharacterShield>().StartGame();
             player.GetComponent<CharacterMove>().StartGame();

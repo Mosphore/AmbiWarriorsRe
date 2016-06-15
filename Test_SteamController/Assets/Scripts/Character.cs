@@ -82,8 +82,7 @@ public class Character : NetworkBehaviour
     IEnumerator ConnectPlayer()
     {
         yield return new WaitForSeconds(2);
-
-        Debug.Log("CharacterIsServerStart");
+        
         GameObject.Find("GameManager").GetComponent<GameManager>().ConnectPlayer(GetComponent<NetworkIdentity>().netId);
 
     }
@@ -93,7 +92,6 @@ public class Character : NetworkBehaviour
     {
         if(isServer)
         {
-            Debug.Log("CharacterIsServerStart");
             StartCoroutine(ConnectPlayer());
 
         }
